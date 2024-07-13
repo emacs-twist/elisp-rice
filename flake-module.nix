@@ -65,9 +65,11 @@ in {
 
       github = {
         matrix = {
-          include = lib.flatten (
-            lib.mapAttrsToList makeMatrixForArchAndOs githubPlatforms
-          );
+          include = lib.pipe githubPlatforms [
+            (lib.getAttrs cfg.github.systems)
+            (lib.mapAttrsToList makeMatrixForArchAndOs)
+            lib.flatten
+          ];
         };
       };
     };
@@ -111,6 +113,26 @@ in {
           be the input name.
         '';
         default = null;
+      };
+
+      github = {
+        systems = mkOption {
+          type = types.listOf types.str;
+          description = lib.mdDoc ''
+            The target systems for which the CI matrix will be generated.
+            Note that GitHub Actions only supports a limited set of operating
+            systems and architectures, and unsupported systems are ignored
+            anyway.
+
+            Set this value if you want to skip checks on platforms where Nix run
+            slower (e.g. Darwin) or your package explicitly targets certain
+            operating systems.
+
+            You can use [nix-systems](https://github.com/nix-systems/nix-systems)
+            to allow overriding the target systems by the user.
+          '';
+          default = attrNames githubPlatforms;
+        };
       };
     };
 
