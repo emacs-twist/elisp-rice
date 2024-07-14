@@ -91,10 +91,10 @@ in {
         '';
       };
 
-      melpa = mkOption {
-        type = types.path;
+      registries = mkOption {
+        type = types.listOf types.attrs;
         description = lib.mdDoc ''
-          Path to the melpa repository to discover recipes
+          Package registries for twist
         '';
       };
 
@@ -203,16 +203,7 @@ in {
             initialLibraries =
               emacs-builtins.lib.builtinLibrariesOfEmacsVersion
               emacsPackage.version;
-            registries = [
-              {
-                type = "melpa";
-                path = cfg.melpa + "/recipes";
-              }
-              {
-                type = "archive";
-                url = "https://elpa.gnu.org/packages/";
-              }
-            ];
+            inherit (cfg) registries;
             inherit (cfg) localPackages;
             inherit (cfg) lockDir;
             inputOverrides = lib.genAttrs cfg.localPackages (_: {
