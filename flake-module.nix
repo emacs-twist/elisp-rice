@@ -211,10 +211,6 @@ in {
               mainIsAscii = true;
             });
             exportManifest = false;
-            postCommandOnGeneratingLockDir =
-              if isString cfg.lockInputName && cfg.lockInputName != ""
-              then "nix flake lock --update-input ${cfg.lockInputName}"
-              else null;
           }
         )
         .overrideScope (_xself: xsuper: {
