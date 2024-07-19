@@ -21,7 +21,7 @@
 
           Example:
             elisp-rice = inputs.elisp-rice.lib.configFromInputs {
-              inherit (inputs) rice-src rice-lock registries systems;
+              inherit (inputs) rice-src rice-lock registries systems melpa;
             };
           */
           configFromInputs = {
@@ -29,7 +29,8 @@
             rice-lock,
             registries,
             systems,
-          }: let
+            ...
+          } @ inputs': let
             cfg = rice-src.elisp-rice;
           in {
             localPackages = cfg.packages;
@@ -37,6 +38,7 @@
             tests = cfg.tests or {};
             src = rice-src.outPath;
             lockDir = rice-lock.outPath;
+            melpa = inputs'.melpa or null;
             github = {
               systems = import systems;
             };
