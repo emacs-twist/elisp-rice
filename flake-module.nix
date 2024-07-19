@@ -110,15 +110,6 @@ in {
         default = null;
       };
 
-      lockInputName = mkOption {
-        type = types.nullOr types.str;
-        description = lib.mdDoc ''
-          If the lock directory is an input of the root flake, this should
-          be the input name.
-        '';
-        default = null;
-      };
-
       extraPackages = mkOption {
         type = types.listOf types.str;
         description = lib.mdDoc ''
