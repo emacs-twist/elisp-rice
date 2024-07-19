@@ -73,7 +73,14 @@ in {
     flake = {
       melpaRecipes = lib.genAttrs cfg.localPackages (
         name:
-          readFile (cfg.melpa + "/recipes/${name}")
+          readFile (
+            (
+              if cfg.melpa == null
+              then abort "You need to set elisp-rice.melpa to use this functionality"
+              else cfg.melpa
+            )
+            + "/recipes/${name}"
+          )
       );
 
       github = {
@@ -147,6 +154,14 @@ in {
             default = ["buttercup"];
           };
         };
+      };
+
+      melpa = mkOption {
+        type = types.nullOr types.path;
+        description = lib.mdDoc ''
+          Path to the MELPA repository. This is needed for melpazoid support.
+        '';
+        default = null;
       };
 
       github = {
