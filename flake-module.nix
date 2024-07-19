@@ -7,7 +7,6 @@
 }: let
   inherit
     (builtins)
-    isString
     map
     readFile
     attrNames
