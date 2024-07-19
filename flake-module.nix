@@ -20,7 +20,8 @@
 
   emacsLispPackages =
     cfg.localPackages
-    ++ cfg.extraPackages;
+    ++ cfg.extraPackages
+    ++ lib.optionals cfg.tests.buttercup.enable cfg.tests.buttercup.packages;
 
   githubPlatforms = {
     "x86_64-linux" = "ubuntu-latest";
@@ -124,6 +125,28 @@ in {
           List of Emacs Lisp packages added to the environment.
         '';
         default = [];
+      };
+
+      tests = {
+        buttercup = {
+          enable = mkEnableOption "buttercup";
+
+          command = mkOption {
+            type = types.str;
+            description = lib.mdDoc ''
+              Shell command to run for the tests.
+            '';
+            default = "emacs -batch -l buttercup -f buttercup-run-discover \"$PWD\"";
+          };
+
+          packages = mkOption {
+            type = types.listOf types.str;
+            description = lib.mdDoc ''
+              List of Emacs Lisp packages added to the test environment.
+            '';
+            default = ["buttercup"];
+          };
+        };
       };
 
       github = {
@@ -311,12 +334,28 @@ in {
         packages =
           if sysCfg.enableElispPackages
           then
-            lib.mapAttrs' (
-              emacsName: emacsPackage:
-                lib.nameValuePair "${emacsName}-with-packages"
-                (makeEmacsEnv emacsPackage)
+            (
+              (lib.mapAttrs' (
+                  emacsName: emacsPackage:
+                    lib.nameValuePair "${emacsName}-with-packages"
+                    (makeEmacsEnv emacsPackage)
+                )
+                filteredEmacsPackageSet)
+              // lib.optionalAttrs cfg.tests.buttercup.enable (lib.mapAttrs' (
+                  emacsName: emacsPackage:
+                    lib.nameValuePair "test-buttercup-with-${emacsName}"
+                    (
+                      pkgs.writeShellApplication {
+                        name = "test-buttercup";
+                        runtimeInputs = [
+                          (makeEmacsEnv emacsPackage)
+                        ];
+                        text = cfg.tests.buttercup.command;
+                      }
+                    )
+                )
+                filteredEmacsPackageSet)
             )
-            filteredEmacsPackageSet
           else
             ({
                 default = (makeEmacsEnv supportedMinEmacs).generateLockDir;
