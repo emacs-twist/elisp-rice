@@ -79,7 +79,7 @@ in {
       github = {
         matrix = {
           include = lib.pipe githubPlatforms [
-            (lib.getAttrs cfg.github.systems)
+            (lib.getAttrs (lib.intersectLists cfg.github.systems (attrNames githubPlatforms)))
             (lib.mapAttrsToList makeMatrixForArchAndOs)
             lib.flatten
           ];
@@ -248,8 +248,8 @@ in {
             inherit (cfg) lockDir;
             inputOverrides = lib.genAttrs cfg.localPackages (_: {
               inherit (cfg) src;
-              mainIsAscii = true;
             });
+            defaultMainIsAscii = true;
             exportManifest = false;
           }
         )
