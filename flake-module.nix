@@ -325,17 +325,14 @@ in {
       };
 
       config = {
-        pre-commit.settings.hooks.elisp-byte-compile = lib.mkIf sysCfg.enableElispPackages {
-          description = "Byte-compile Emacs Lisp files";
-          entry = "${byte-compile}/bin/elisp-byte-compile";
-          files = "\\.el$";
-        };
-
         packages =
           if sysCfg.enableElispPackages
           then
             (
-              (lib.mapAttrs' (
+              {
+                inherit byte-compile;
+              }
+              // (lib.mapAttrs' (
                   emacsName: emacsPackage:
                     lib.nameValuePair "${emacsName}-with-packages"
                     (makeEmacsEnv emacsPackage)
