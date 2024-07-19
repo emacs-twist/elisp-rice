@@ -15,8 +15,12 @@
     sort
     head
     ;
-  inherit (lib) mkOption types;
+  inherit (lib) mkOption mkEnableOption types;
   cfg = config.elisp-rice;
+
+  emacsLispPackages =
+    cfg.localPackages
+    ++ cfg.extraPackages;
 
   githubPlatforms = {
     "x86_64-linux" = "ubuntu-latest";
@@ -114,6 +118,14 @@ in {
         default = null;
       };
 
+      extraPackages = mkOption {
+        type = types.listOf types.str;
+        description = lib.mdDoc ''
+          List of Emacs Lisp packages added to the environment.
+        '';
+        default = [];
+      };
+
       github = {
         systems = mkOption {
           type = types.listOf types.str;
@@ -181,6 +193,12 @@ in {
         )
         sysCfg.emacsPackageSet;
 
+      supportedMinEmacs = lib.pipe filteredEmacsPackageSet [
+        builtins.attrValues
+        (lib.sort (a: b: a.version < b.version))
+        builtins.head
+      ];
+
       makeAttrs = g:
         lib.pipe filteredEmacsPackageSet [
           attrNames
@@ -198,7 +216,7 @@ in {
             inherit emacsPackage;
             nativeCompileAheadDefault = false;
             initFiles = [];
-            extraPackages = cfg.localPackages;
+            extraPackages = emacsLispPackages;
             initialLibraries =
               emacs-builtins.lib.builtinLibrariesOfEmacsVersion
               emacsPackage.version;
@@ -253,6 +271,12 @@ in {
     in {
       options = {
         elisp-rice = {
+          enableElispPackages = mkEnableOption (lib.mdDoc ''
+            Enable the outputs for individual Emacs Lisp packages.
+
+            You have to set this to false when you initialize the lock directory.
+          '');
+
           emacsPackageSet = mkOption {
             type = types.uniq (types.lazyAttrsOf types.package);
             description = lib.mdDoc ''
@@ -278,21 +302,33 @@ in {
       };
 
       config = {
-        pre-commit.settings.hooks.elisp-byte-compile = {
+        pre-commit.settings.hooks.elisp-byte-compile = lib.mkIf sysCfg.enableElispPackages {
           description = "Byte-compile Emacs Lisp files";
           entry = "${byte-compile}/bin/elisp-byte-compile";
           files = "\\.el$";
         };
 
         packages =
-          lib.mapAttrs' (
-            emacsName: emacsPackage:
-              lib.nameValuePair "${emacsName}-with-packages"
-              (makeEmacsEnv emacsPackage)
-          )
-          filteredEmacsPackageSet;
+          if sysCfg.enableElispPackages
+          then
+            lib.mapAttrs' (
+              emacsName: emacsPackage:
+                lib.nameValuePair "${emacsName}-with-packages"
+                (makeEmacsEnv emacsPackage)
+            )
+            filteredEmacsPackageSet
+          else
+            ({
+                default = (makeEmacsEnv supportedMinEmacs).generateLockDir;
+              }
+              // (lib.mapAttrs' (
+                  emacsName: emacsPackage:
+                    lib.nameValuePair "lock-with-${emacsName}"
+                    (makeEmacsEnv emacsPackage).generateLockDir
+                )
+                sysCfg.emacsPackageSet));
 
-        devShells = makeAttrs (
+        devShells = lib.mkIf sysCfg.enableElispPackages (makeAttrs (
           emacsName: elispName: let
             emacsEnv = makeEmacsEnv sysCfg.emacsPackageSet.${emacsName};
             epkg = emacsEnv.elispPackages.${elispName};
@@ -308,14 +344,14 @@ in {
                 epkg
               ];
             })
-        );
+        ));
 
-        checks = makeAttrs (
+        checks = lib.mkIf sysCfg.enableElispPackages (makeAttrs (
           emacsName: elispName:
             lib.nameValuePair
             (compileName {inherit emacsName elispName;})
             (makeEmacsEnv sysCfg.emacsPackageSet.${emacsName}).elispPackages.${elispName}
-        );
+        ));
       };
     });
   };
