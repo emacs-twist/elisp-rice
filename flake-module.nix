@@ -34,6 +34,8 @@
     emacsName,
   }: "${elispName}-compile-${emacsName}";
 
+  buttercupDrvName = emacsName: "test-buttercup-with-${emacsName}";
+
   makeMatrixForArchAndOs = arch: os: let
     sysCfg = (getSystem arch).elisp-rice;
 
@@ -51,10 +53,17 @@
 
     matrixForEmacs = emacs:
       map (
-        elispName: {
-          inherit arch os emacs;
-          target = elispName;
-        }
+        elispName:
+          {
+            inherit arch os emacs;
+            target = elispName;
+          }
+          // (
+            lib.optionalAttrs cfg.tests.buttercup.enable {
+              test-type = "run";
+              test-derivation = buttercupDrvName emacs;
+            }
+          )
       )
       cfg.localPackages;
   in
@@ -331,7 +340,7 @@ in {
                 filteredEmacsPackageSet)
               // lib.optionalAttrs cfg.tests.buttercup.enable (lib.mapAttrs' (
                   emacsName: emacsPackage:
-                    lib.nameValuePair "test-buttercup-with-${emacsName}"
+                    lib.nameValuePair (buttercupDrvName emacsName)
                     (
                       pkgs.writeShellApplication {
                         name = "test-buttercup";
