@@ -14,6 +14,35 @@
       systems = [];
       flake = {
         inherit flakeModules;
+
+        lib = {
+          /*
+          Generate `elisp-rice` flake output from inputs.
+
+          Example:
+            elisp-rice = inputs.elisp-rice.lib.configFromInputs {
+              inherit (inputs) rice-src rice-lock registries systems;
+            };
+          */
+          configFromInputs = {
+            rice-src,
+            rice-lock,
+            registries,
+            systems,
+          }: let
+            cfg = rice-src.elisp-rice;
+          in {
+            localPackages = cfg.packages;
+            extraPackages = cfg.extraPackages or [];
+            tests = cfg.tests or {};
+            src = rice-src.outPath;
+            lockDir = rice-lock.outPath;
+            github = {
+              systems = import systems;
+            };
+            registries = registries.lib.registries;
+          };
+        };
       };
     });
 }
