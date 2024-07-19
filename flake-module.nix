@@ -231,12 +231,6 @@ in {
         )
         sysCfg.emacsPackageSet;
 
-      supportedMinEmacs = lib.pipe filteredEmacsPackageSet [
-        builtins.attrValues
-        (lib.sort (a: b: a.version < b.version))
-        builtins.head
-      ];
-
       makeAttrs = g:
         lib.pipe filteredEmacsPackageSet [
           attrNames
@@ -309,12 +303,6 @@ in {
     in {
       options = {
         elisp-rice = {
-          enableElispPackages = mkEnableOption (lib.mdDoc ''
-            Enable the outputs for individual Emacs Lisp packages.
-
-            You have to set this to false when you initialize the lock directory.
-          '');
-
           emacsPackageSet = mkOption {
             type = types.uniq (types.lazyAttrsOf types.package);
             description = lib.mdDoc ''
@@ -340,46 +328,33 @@ in {
       };
 
       config = {
-        packages =
-          if sysCfg.enableElispPackages
-          then
-            (
-              {
-                inherit byte-compile;
-              }
-              // (lib.mapAttrs' (
-                  emacsName: emacsPackage:
-                    lib.nameValuePair "${emacsName}-with-packages"
-                    (makeEmacsEnv emacsPackage)
-                )
-                filteredEmacsPackageSet)
-              // lib.optionalAttrs cfg.tests.buttercup.enable (lib.mapAttrs' (
-                  emacsName: emacsPackage:
-                    lib.nameValuePair (buttercupDrvName emacsName)
-                    (
-                      pkgs.writeShellApplication {
-                        name = "test-buttercup";
-                        runtimeInputs = [
-                          (makeEmacsEnv emacsPackage)
-                        ];
-                        text = cfg.tests.buttercup.command;
-                      }
-                    )
-                )
-                filteredEmacsPackageSet)
+        packages = (
+          {
+            inherit byte-compile;
+          }
+          // (lib.mapAttrs' (
+              emacsName: emacsPackage:
+                lib.nameValuePair "${emacsName}-with-packages"
+                (makeEmacsEnv emacsPackage)
             )
-          else
-            ({
-                default = (makeEmacsEnv supportedMinEmacs).generateLockDir;
-              }
-              // (lib.mapAttrs' (
-                  emacsName: emacsPackage:
-                    lib.nameValuePair "lock-with-${emacsName}"
-                    (makeEmacsEnv emacsPackage).generateLockDir
+            filteredEmacsPackageSet)
+          // lib.optionalAttrs cfg.tests.buttercup.enable (lib.mapAttrs' (
+              emacsName: emacsPackage:
+                lib.nameValuePair (buttercupDrvName emacsName)
+                (
+                  pkgs.writeShellApplication {
+                    name = "test-buttercup";
+                    runtimeInputs = [
+                      (makeEmacsEnv emacsPackage)
+                    ];
+                    text = cfg.tests.buttercup.command;
+                  }
                 )
-                sysCfg.emacsPackageSet));
+            )
+            filteredEmacsPackageSet)
+        );
 
-        devShells = lib.mkIf sysCfg.enableElispPackages (makeAttrs (
+        devShells = makeAttrs (
           emacsName: elispName: let
             emacsEnv = makeEmacsEnv sysCfg.emacsPackageSet.${emacsName};
             epkg = emacsEnv.elispPackages.${elispName};
@@ -395,14 +370,14 @@ in {
                 epkg
               ];
             })
-        ));
+        );
 
-        checks = lib.mkIf sysCfg.enableElispPackages (makeAttrs (
+        checks = makeAttrs (
           emacsName: elispName:
             lib.nameValuePair
             (compileName {inherit emacsName elispName;})
             (makeEmacsEnv sysCfg.emacsPackageSet.${emacsName}).elispPackages.${elispName}
-        ));
+        );
       };
     });
   };
