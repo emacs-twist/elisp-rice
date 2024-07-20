@@ -265,6 +265,7 @@ in {
               inherit (cfg) src;
               mainIsAscii = true;
             });
+            persistMetadata = true;
             exportManifest = false;
           }
         )
