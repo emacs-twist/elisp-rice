@@ -257,8 +257,8 @@ in {
             inherit (cfg) lockDir;
             inputOverrides = lib.genAttrs cfg.localPackages (_: {
               inherit (cfg) src;
+              mainIsAscii = true;
             });
-            defaultMainIsAscii = true;
             exportManifest = false;
           }
         )
