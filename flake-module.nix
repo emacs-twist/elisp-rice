@@ -39,35 +39,31 @@
   makeMatrixForArchAndOs = arch: os: let
     sysCfg = (getSystem arch).elisp-rice;
 
-    # A list of Emacs versions (actually attribute names) that are
-    # greater than the minimum supported Emacs version on the system.
-    supportedEmacsVersions = lib.pipe sysCfg.emacsPackageSet [
-      (lib.filterAttrs (
-        _: emacsPackage:
-          lib.versionAtLeast
-          emacsPackage.version
-          sysCfg.minEmacsVersion
-      ))
-      attrNames
-    ];
+    makeMatrixEntry = {
+      emacs,
+      elispName,
+    }:
+      {
+        inherit arch os emacs;
+        target = elispName;
+      }
+      // (
+        lib.optionalAttrs cfg.tests.buttercup.enable {
+          test-type = "run";
+          test-derivation = buttercupDrvName emacs;
+        }
+      );
 
-    matrixForEmacs = emacs:
-      map (
-        elispName:
-          {
-            inherit arch os emacs;
-            target = elispName;
-          }
-          // (
-            lib.optionalAttrs cfg.tests.buttercup.enable {
-              test-type = "run";
-              test-derivation = buttercupDrvName emacs;
-            }
-          )
-      )
-      cfg.localPackages;
+    generateEntriesForPackage = elispName:
+      lib.pipe (sysCfg.supportedEmacsPackageSet.${elispName}) [
+        attrNames
+        (map (emacs: makeMatrixEntry {inherit emacs elispName;}))
+      ];
   in
-    map matrixForEmacs supportedEmacsVersions;
+    lib.pipe cfg.localPackages [
+      (map generateEntriesForPackage)
+      lib.flatten
+    ];
 in {
   config = {
     flake = {
@@ -356,6 +352,15 @@ in {
               release of Emacs or a snapshot from one of the development
               branches.
             '';
+          };
+
+          supportedEmacsPackageSet = mkOption {
+            type = types.lazyAttrsOf (types.lazyAttrsOf types.package);
+            description = lib.mdDoc ''
+              An attribute set of Emacs package sets for each local package
+            '';
+            readOnly = true;
+            default = lib.genAttrs cfg.localPackages emacsPackageSetForPackage;
           };
 
           minEmacsVersion = mkOption {
