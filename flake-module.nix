@@ -11,7 +11,6 @@
     readFile
     attrNames
     mapAttrs
-    elem
     sort
     head
     ;
@@ -293,9 +292,9 @@ in {
             _eself: esuper:
               mapAttrs (ename: epkg:
                 epkg.overrideAttrs (_: {
-                  # dontByteCompile = true;
-
-                  doCheck = elem ename cfg.localPackages;
+                  # Skip the check by default but enable it on a target package
+                  # using `overrideAttrs`.
+                  doCheck = false;
                   checkPhase = ''
                     printf >&2 "Testing with %s\n" "$(emacs --version | grep -E 'GNU Emacs [0-9]+')"
 
@@ -433,7 +432,9 @@ in {
           emacsName: emacsPackage: elispName:
             lib.nameValuePair
             (compileName {inherit emacsName elispName;})
-            (makeEmacsEnv emacsPackage).elispPackages.${elispName}
+            ((makeEmacsEnv emacsPackage).elispPackages.${elispName}.overrideAttrs {
+              doCheck = true;
+            })
         ));
       };
     });
