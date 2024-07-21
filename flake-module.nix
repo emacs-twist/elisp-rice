@@ -225,26 +225,49 @@ in {
       };
 
       filteredEmacsPackageSet =
-        lib.filterAttrs (
-          _: emacsPackage:
-            lib.versionAtLeast emacsPackage.version sysCfg.minEmacsVersion
-        )
-        sysCfg.emacsPackageSet;
+        {
+          emacs-lowest = sysCfg.emacsPackageSet.${sysCfg.minEmacsVersion};
+        }
+        // (lib.filterAttrs (
+            _: emacsPackage:
+              lib.versionAtLeast emacsPackage.version sysCfg.minEmacsVersion
+          )
+          sysCfg.emacsPackageSet);
 
-      supportedMinEmacs = lib.pipe filteredEmacsPackageSet [
-        builtins.attrValues
-        (lib.sort (a: b: a.version < b.version))
-        builtins.head
-      ];
+      lowestVersionFromAttrs = packageSet:
+        lib.pipe packageSet [
+          builtins.attrValues
+          (lib.sort (a: b: a.version < b.version))
+          builtins.head
+        ];
+
+      withEmacsLowestAttr = packageSet:
+        packageSet
+        // {
+          emacs-lowest = lowestVersionFromAttrs packageSet;
+        };
+
+      # To get packageInputs of the Emacs environment, twist.nix needs to be run
+      # in build mode, which means you cannot evaluate this until the metadata
+      # is available in the lock directory.
+      lowestEmacsVersionForPackage = elispName:
+        defaultEmacsEnv.packageInputs.${elispName}.packageRequires.emacs;
+
+      emacsPackageSetForPackage = elispName: let
+        minEmacsVersion = lowestEmacsVersionForPackage elispName;
+      in
+        lib.filterAttrs (_: emacsPackage: lib.versionAtLeast emacsPackage.version minEmacsVersion) sysCfg.emacsPackageSet;
 
       makeAttrs = g:
-        lib.pipe filteredEmacsPackageSet [
-          attrNames
-
-          (map (emacsName: (map (g emacsName) cfg.localPackages)))
-
+        lib.pipe cfg.localPackages [
+          (map (
+            elispName:
+              lib.mapAttrsToList (
+                emacsName: emacsPackage:
+                  g emacsName emacsPackage elispName
+              ) (withEmacsLowestAttr (emacsPackageSetForPackage elispName))
+          ))
           lib.flatten
-
           lib.listToAttrs
         ];
 
@@ -326,7 +349,12 @@ in {
           defaultEmacsPackage = mkOption {
             type = types.package;
             description = lib.mdDoc ''
-              Package used for various tasks
+              Package used for various tasks.
+
+              It should be an Emacs version that is supported by all of the
+              local packages. Thus, a normal value would be the latest stable
+              release of Emacs or a snapshot from one of the development
+              branches.
             '';
           };
 
@@ -354,7 +382,8 @@ in {
                     (makeEmacsEnv emacsPackage)
                 )
                 filteredEmacsPackageSet)
-              // lib.optionalAttrs cfg.tests.buttercup.enable (lib.mapAttrs' (
+              // lib.optionalAttrs cfg.tests.buttercup.enable (
+                lib.mapAttrs' (
                   emacsName: emacsPackage:
                     lib.nameValuePair (buttercupDrvName emacsName)
                     (
@@ -367,23 +396,20 @@ in {
                       }
                     )
                 )
-                filteredEmacsPackageSet)
+                filteredEmacsPackageSet
+              )
             )
           else
-            ({
-                default = (makeEmacsEnv supportedMinEmacs).generateLockDir;
-              }
-              // (lib.mapAttrs' (
-                  emacsName: emacsPackage:
-                    lib.nameValuePair "lock-with-${emacsName}"
-                    (makeEmacsEnv emacsPackage).generateLockDir
-                )
-                sysCfg.emacsPackageSet));
+            (lib.mapAttrs' (
+                emacsName: emacsPackage:
+                  lib.nameValuePair "lock-with-${emacsName}"
+                  (makeEmacsEnv emacsPackage).generateLockDir
+              )
+              (withEmacsLowestAttr sysCfg.emacsPackageSet));
 
         devShells = lib.mkIf sysCfg.enableElispPackages (makeAttrs (
-          emacsName: elispName: let
-            emacsEnv = makeEmacsEnv sysCfg.emacsPackageSet.${emacsName};
-            epkg = emacsEnv.elispPackages.${elispName};
+          emacsName: emacsPackage: elispName: let
+            epkg = (makeEmacsEnv emacsPackage).elispPackages.${elispName};
           in
             lib.nameValuePair
             "${emacsName}-for-${elispName}"
@@ -399,10 +425,10 @@ in {
         ));
 
         checks = lib.mkIf sysCfg.enableElispPackages (makeAttrs (
-          emacsName: elispName:
+          emacsName: emacsPackage: elispName:
             lib.nameValuePair
             (compileName {inherit emacsName elispName;})
-            (makeEmacsEnv sysCfg.emacsPackageSet.${emacsName}).elispPackages.${elispName}
+            (makeEmacsEnv emacsPackage).elispPackages.${elispName}
         ));
       };
     });
