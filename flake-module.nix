@@ -349,7 +349,12 @@ in {
           defaultEmacsPackage = mkOption {
             type = types.package;
             description = lib.mdDoc ''
-              Package used for various tasks
+              Package used for various tasks.
+
+              It should be an Emacs version that is supported by all of the
+              local packages. Thus, a normal value would be the latest stable
+              release of Emacs or a snapshot from one of the development
+              branches.
             '';
           };
 
